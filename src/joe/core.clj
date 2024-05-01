@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.pprint :as pp]
-            [clojure.term.colors :as tc])
+            [clojure.term.colors :refer [blue green]])
   (:import (java.awt Desktop)
            (java.net URI)))
 
@@ -16,7 +16,7 @@
   (Bookmark. (:title m) (:url m) (:tags m)))
 
 (defn listing [b]
-  (str (:title b) " " (tc/blue (:url b)) " [" (str/join ", " (map tc/green (:tags b))) "]"))
+  (str (:title b) " " (blue (:url b)) " [" (str/join ", " (map green (:tags b))) "]"))
 
 (defn load-bookmarks []
   (if (.exists (io/file "bookmarks.edn"))
