@@ -9,9 +9,7 @@
 (def bookmarks (atom ()))
 
 (defn bm->map [bm]
-  {:title (:title bm)
-   :url (:url bm)
-   :tags (:tags bm)})
+  (into {} bm))
 
 (defn map->bm [m]
   (Bookmark. (:title m) (:url m) (:tags m)))
@@ -76,8 +74,7 @@
   (println "unknown command:" cmd))
 
 (defn -main
-  ([] (println "try 'help' for a list of commands")
-      (println "like: joe help"))
+  ([] (println "try 'joew help' for a list of commands"))
   ([& args]
    (load-bookmarks)
    (apply command args)
