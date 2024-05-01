@@ -8,12 +8,12 @@
 
 (def bookmarks (atom ()))
 
-(defn create-bookmark 
+(defn create-bookmark
   "Create a bookmark map with title, url, and tags."
-  [title url tags]
+  [title url & tags]
   {:title title :url url :tags tags})
 
-(defn listing 
+(defn listing
   "Format a bookmark for display."
   [b]
   (str (:title b) " (" (blue (:url b)) ") [" (str/join ", " (map green (:tags b))) "]"))
@@ -25,16 +25,14 @@
     (reset! bookmarks (read-string (slurp "bookmarks.edn")))
     (println "no bookmarks found")))
 
-(defn save-bookmarks 
-  "Save bookmarks to file using a formatter function."
-  [formatter] 
-  (spit "bookmarks.edn" (formatter @bookmarks)))
+(defn save-bookmarks
+  "Save bookmarks to file using a(n) (optional) formatter function."
+  ([formatter] (spit "bookmarks.edn" (formatter @bookmarks)))
+  ([] (spit "bookmarks.edn" (pr-str @bookmarks))))
 
-;; some formatters
+;; formatter
 
 (def pretty-formatter (fn [b] (with-out-str (pprint b))))
-
-(def tiny-formatter (fn [b] (pr-str b)))
 
 (defn add-bookmark
   "Add a bookmark to the list."
@@ -42,13 +40,12 @@
   (swap! bookmarks conj (apply create-bookmark title url tags))
   (println "added bookmark:" title))
 
-(defn list-bookmarks 
+(defn list-bookmarks
   "List all bookmarks."
-  []
   [] (doseq [bookmark @bookmarks]
        (println (listing bookmark))))
 
-(defn find-bookmarks 
+(defn find-bookmarks
   "Find bookmarks by title or tag."
   [query]
   (filter (fn [b]
@@ -57,7 +54,7 @@
              (some #(str/includes? % query) (:tags b))))
           @bookmarks))
 
-(defn open-bookmark 
+(defn open-bookmark
   "Open the first bookmark that matches the query."
   [query]
   (if-let [b (first (find-bookmarks query))]
@@ -93,6 +90,9 @@
   (save-bookmarks pretty-formatter)
   (System/exit 0))
 
+(defmethod command :clear [_]
+  (reset! bookmarks ()))
+
 (defmethod command :default [cmd & _]
   (println "unknown command:" cmd))
 
@@ -101,4 +101,4 @@
   ([& args]
    (load-bookmarks)
    (apply command args)
-   (save-bookmarks tiny-formatter)))
+   (save-bookmarks)))
