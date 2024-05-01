@@ -1,6 +1,7 @@
 (ns joe.core
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.pprint :as pp]
             [clojure.term.colors :as tc])
   (:import (java.awt Desktop)
            (java.net URI)))
@@ -22,8 +23,11 @@
     (reset! bookmarks (map map->bm (read-string (slurp "bookmarks.edn"))))
     (println "no bookmarks found")))
 
-(defn save-bookmarks []
-  (spit "bookmarks.edn" (pr-str (map bm->map @bookmarks))))
+(defn save-bookmarks [format]
+  (let [f (io/file "bookmarks.edn")]
+    (case format
+      :pretty (pp/pprint (map bm->map @bookmarks) (io/writer f))
+      :tiny (spit f (pr-str (map bm->map @bookmarks))))))
 
 (defn add-bookmark [title url & tags]
   (swap! bookmarks conj (Bookmark. title url tags))
@@ -44,10 +48,11 @@
   (first (find-bookmarks query)))
 
 (defn open-bookmark [query]
-  (let [b (find-bookmark query)]
-    (when b
-      (let [uri (URI. (:url b))]
-        (.browse (Desktop/getDesktop) uri)))))
+  (if-let [b (find-bookmark query)]
+    (do
+      (.browse (Desktop/getDesktop) (URI. (:url b)))
+      (println "opened bookmark:" (:title b)))
+    (println "bookmark not found")))
 
 (defmulti command (fn [cmd & _] (keyword cmd)))
 
@@ -70,12 +75,16 @@
     (let [cmd (str (name (first m)))]
       (println "  " cmd))))
 
+(defmethod command :save-pretty [_]
+  (save-bookmarks :pretty)
+  (System/exit 0))
+
 (defmethod command :default [cmd & _]
   (println "unknown command:" cmd))
 
 (defn -main
-  ([] (println "try 'joew help' for a list of commands"))
+  ([] (println "try 'joe help' for a list of commands"))
   ([& args]
    (load-bookmarks)
    (apply command args)
-   (save-bookmarks)))
+   (save-bookmarks :tiny)))
