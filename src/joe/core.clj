@@ -22,14 +22,14 @@
 (defn load-bookmarks []
   (if (.exists (io/file "bookmarks.edn"))
     (reset! bookmarks (map map->bm (read-string (slurp "bookmarks.edn"))))
-    (println "No bookmarks found")))
+    (println "no bookmarks found")))
 
 (defn save-bookmarks []
   (spit "bookmarks.edn" (pr-str (map bm->map @bookmarks))))
 
 (defn add-bookmark [title url & tags]
   (swap! bookmarks conj (Bookmark. title url tags))
-  (println "Added bookmark:" title))
+  (println "added bookmark:" title))
 
 (defn list-bookmarks
   ([] (doseq [b @bookmarks]
@@ -37,8 +37,9 @@
 
 (defn find-bookmarks [query]
   (filter (fn [b]
-            (or (str/includes? (str/lower-case (:title b)) (str/lower-case query))
-                (some #(str/includes? % query) (:tags b))))
+            (or
+             (str/includes? (str/lower-case (:title b)) (str/lower-case query))
+             (some #(str/includes? % query) (:tags b))))
           @bookmarks))
 
 (defn find-bookmark [query]
@@ -62,17 +63,22 @@
   (doseq [b (find-bookmarks query)]
     (println (listing b))))
 
-(defmethod command :open [_ & query]
-  (open-bookmark (str/join " " query)))
+(defmethod command :open [_ query]
+  (open-bookmark query))
 
 (defmethod command :help [_]
-  (println "Commands:")
-  (map (fn [[cmd _]] (println cmd)) (methods command)))
+  (println "commands:")
+  (doseq [m (methods command)]
+    (let [cmd (str (name (first m)))]
+      (println "  " cmd))))
 
 (defmethod command :default [cmd & _]
-  (println "Unknown command:" cmd))
+  (println "unknown command:" cmd))
 
-(defn -main [& args]
-  (load-bookmarks)
-  (apply command args)
-  (save-bookmarks))
+(defn -main
+  ([] (println "try 'help' for a list of commands")
+      (println "like: joe help"))
+  ([& args]
+   (load-bookmarks)
+   (apply command args)
+   (save-bookmarks)))
