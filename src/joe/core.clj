@@ -1,41 +1,38 @@
 (ns joe.core
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.pprint :as pp]
+            [clojure.pprint :refer [pprint]]
             [clojure.term.colors :refer [blue green]])
   (:import (java.awt Desktop)
            (java.net URI)))
 
-(defrecord Bookmark [title url tags])
 (def bookmarks (atom ()))
 
-(defn bm->map [bm]
-  (into {} bm))
-
-(defn map->bm [m]
-  (Bookmark. (:title m) (:url m) (:tags m)))
+(defn create-bookmark [title url tags]
+  {:title title :url url :tags tags})
 
 (defn listing [b]
-  (str (:title b) " " (blue (:url b)) " [" (str/join ", " (map green (:tags b))) "]"))
+  (str (:title b) " (" (blue (:url b)) ") [" (str/join ", " (map green (:tags b))) "]"))
 
 (defn load-bookmarks []
   (if (.exists (io/file "bookmarks.edn"))
-    (reset! bookmarks (map map->bm (read-string (slurp "bookmarks.edn"))))
+    (reset! bookmarks (read-string (slurp "bookmarks.edn")))
     (println "no bookmarks found")))
 
-(defn save-bookmarks [format]
-  (let [f (io/file "bookmarks.edn")]
-    (case format
-      :pretty (pp/pprint (map bm->map @bookmarks) (io/writer f))
-      :tiny (spit f (pr-str (map bm->map @bookmarks))))))
+(defn save-bookmarks [formatter]
+  (spit "bookmarks.edn" (formatter @bookmarks)))
+
+(def pretty-formatter (fn [b] (with-out-str (pprint b))))
+
+(def tiny-formatter (fn [b] (pr-str b)))
 
 (defn add-bookmark [title url & tags]
-  (swap! bookmarks conj (Bookmark. title url tags))
+  (swap! bookmarks conj (apply create-bookmark title url tags))
   (println "added bookmark:" title))
 
-(defn list-bookmarks
-  ([] (doseq [b @bookmarks]
-        (println (listing b)))))
+(defn list-bookmarks []
+  [] (doseq [bookmark @bookmarks]
+       (println (listing bookmark))))
 
 (defn find-bookmarks [query]
   (filter (fn [b]
@@ -57,7 +54,7 @@
 (defmulti command (fn [cmd & _] (keyword cmd)))
 
 (defmethod command :add [_ title url & tags]
-  (apply add-bookmark title url tags))
+  (add-bookmark title url tags))
 
 (defmethod command :list [_]
   (list-bookmarks))
@@ -71,12 +68,12 @@
 
 (defmethod command :help [_]
   (println "commands:")
-  (doseq [m (methods command)]
+  (doseq [m (sort (filter #(not= :default (first %)) (methods command)))]
     (let [cmd (str (name (first m)))]
       (println "  " cmd))))
 
 (defmethod command :save-pretty [_]
-  (save-bookmarks :pretty)
+  (save-bookmarks pretty-formatter)
   (System/exit 0))
 
 (defmethod command :default [cmd & _]
@@ -87,4 +84,4 @@
   ([& args]
    (load-bookmarks)
    (apply command args)
-   (save-bookmarks :tiny)))
+   (save-bookmarks tiny-formatter)))
