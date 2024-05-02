@@ -29,7 +29,7 @@
     (println "no bookmarks.edn found")))
 
 (defn pretty-bm [b]
-  (format "%s (%s) [%s]" (:title b) (colors/blue (:url b)) (str/join ", " (map colors/green (:tags b)))))
+  (str (:title b) " " (colors/blue (:url b)) " " (str/join ", " (map colors/green (:tags b)))))
 
 (defn list-bookmarks []
   (doseq [b @bookmarks] (println (pretty-bm b))))
@@ -57,7 +57,7 @@
   (doseq [b (list-bookmarks)] (println b)))
 
 (defmethod command :find [_ query]
-  (doseq [b (find-bookmarks query)] (println b)))
+  (doseq [b (find-bookmarks query)] (println (pretty-bm b))))
 
 (defmethod command :open [_ query]
   (open-bookmark query))
