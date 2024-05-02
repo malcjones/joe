@@ -1,103 +1,88 @@
 (ns joe.core
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
-            [clojure.term.colors :refer [blue green]])
+            [clojure.java.io :as io]
+            [clojure.term.colors :as colors])
   (:import (java.awt Desktop)
            (java.net URI)))
 
-(def bookmarks (atom ()))
+(def bookmarks (atom []))
 
-(defn create-bookmark
-  "Create a bookmark map with title, url, and tags."
-  [title url & tags]
-  {:title title :url url :tags tags})
+(defn create-bookmark [title url tags]
+  {:title title :url url :tags (vec tags)})
 
-(defn listing
-  "Format a bookmark for display."
-  [b]
-  (str (:title b) " (" (blue (:url b)) ") [" (str/join ", " (map green (:tags b))) "]"))
+(defn validate-input [title url]
+  (and (str/blank? title) (str/blank? url)
+       (throw (IllegalArgumentException. "title and url should be provided and non-empty."))))
 
-(defn load-bookmarks
-  "Load bookmarks from file or create an empty list."
-  []
+(defn add-bookmark [title url & tags]
+  (validate-input title url)
+  (swap! bookmarks conj (apply create-bookmark title url tags)))
+
+(defn save-bookmarks []
+  (spit "bookmarks.edn" (with-out-str (pprint @bookmarks))))
+
+(defn load-bookmarks []
   (if (.exists (io/file "bookmarks.edn"))
-    (reset! bookmarks (read-string (slurp "bookmarks.edn")))
-    (println "no bookmarks found")))
+    (try (reset! bookmarks (read-string (slurp "bookmarks.edn")))
+         (catch Exception e (println "could not load bookmarks:" (.getMessage e))))
+    (println "no bookmarks.edn found")))
 
-(defn save-bookmarks
-  "Save bookmarks to file using a(n) (optional) formatter function."
-  ([formatter] (spit "bookmarks.edn" (formatter @bookmarks)))
-  ([] (spit "bookmarks.edn" (pr-str @bookmarks))))
+(defn pretty-bm [b]
+  (format "%s (%s) [%s]" (:title b) (colors/blue (:url b)) (str/join ", " (map colors/green (:tags b)))))
 
-;; formatter
+(defn list-bookmarks []
+  (doseq [b @bookmarks] (println (pretty-bm b))))
 
-(def pretty-formatter (fn [b] (with-out-str (pprint b))))
-
-(defn add-bookmark
-  "Add a bookmark to the list."
-  [title url & tags]
-  (swap! bookmarks conj (apply create-bookmark title url tags))
-  (println "added bookmark:" title))
-
-(defn list-bookmarks
-  "List all bookmarks."
-  [] (doseq [bookmark @bookmarks]
-       (println (listing bookmark))))
-
-(defn find-bookmarks
-  "Find bookmarks by title or tag."
-  [query]
-  (filter (fn [b]
-            (or
-             (str/includes? (str/lower-case (:title b)) (str/lower-case query))
-             (some #(str/includes? % query) (:tags b))))
+(defn find-bookmarks [query]
+  (filter #(or (str/includes? (str/lower-case (:title %)) (str/lower-case query))
+               (some (partial str/includes? (str/lower-case query)) (:tags %)))
           @bookmarks))
 
-(defn open-bookmark
-  "Open the first bookmark that matches the query."
-  [query]
+(defn open-bookmark [query]
   (if-let [b (first (find-bookmarks query))]
-    (do
-      (.browse (Desktop/getDesktop) (URI. (:url b)))
-      (println "opened bookmark:" (:title b)))
+    (do (.browse (Desktop/getDesktop) (URI. (:url b)))
+        (println "opened bookmark:" (:title b)))
     (println "bookmark not found")))
 
 (defmulti command (fn [cmd & _] (keyword cmd)))
 
-;; command definitions
-
 (defmethod command :add [_ title url & tags]
-  (add-bookmark title url tags))
+  (try
+    (add-bookmark title url tags)
+    (println "bookmark added.")
+    (catch IllegalArgumentException e (println (.getMessage e)))))
 
 (defmethod command :list [_]
-  (list-bookmarks))
+  (doseq [b (list-bookmarks)] (println b)))
 
 (defmethod command :find [_ query]
-  (doseq [b (find-bookmarks query)]
-    (println (listing b))))
+  (doseq [b (find-bookmarks query)] (println b)))
 
 (defmethod command :open [_ query]
   (open-bookmark query))
 
-(defmethod command :help [_]
-  (println "commands:")
-  (doseq [m (sort (filter #(not= :default (first %)) (methods command)))]
-    (let [cmd (str (name (first m)))]
-      (println "  " cmd))))
+(defmethod command :save [_]
+  (save-bookmarks)
+  (println "bookmarks saved."))
 
-(defmethod command :save-pretty [_]
-  (save-bookmarks pretty-formatter)
-  (System/exit 0))
+(defmethod command :load [_]
+  (load-bookmarks)
+  (println "Bookmarks loaded."))
+
+(defmethod command :help [_]
+  (println "available commands:")
+  (doseq [[k _] (methods command)] (println "  " (name k))))
 
 (defmethod command :clear [_]
-  (reset! bookmarks ()))
+  (reset! bookmarks [])
+  (println "bookmarks cleared."))
 
 (defmethod command :default [cmd & _]
   (println "unknown command:" cmd))
 
 (defn -main
-  ([] (println "try 'joe help' for a list of commands"))
+  ([] (println "usage: joe <command> [args...]"))
   ([& args]
    (load-bookmarks)
    (apply command args)
